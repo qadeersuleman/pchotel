@@ -62,7 +62,7 @@ export default function BookingsList({
 
           <button
             onClick={onOpenCheckIn}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-white bg-sky-500 hover:bg-sky-600 transition shadow-sm cursor-pointer"
+            className="flex items-center gap-1.5 px-4 py-2.5 rounded-2xl text-xs font-black text-white btn-luxury-red transition shadow-sm cursor-pointer"
           >
             <UserPlus className="w-4 h-4" />
             <span>New Reservation</span>
@@ -70,32 +70,28 @@ export default function BookingsList({
         </div>
 
         {/* Filters */}
-        <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-slate-800/60">
+        <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-zinc-200">
           <div className="relative w-full sm:w-72">
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search by name, CNIC, phone, room #..."
-              className={`w-full px-3.5 py-2 pl-9 rounded-xl text-xs border outline-none ${
-                isDarkTheme
-                  ? 'bg-slate-950/70 border-slate-800 text-white placeholder-slate-500 focus:border-sky-500'
-                  : 'bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400 focus:border-sky-600'
-              }`}
+              className="w-full px-3.5 py-2 pl-9 rounded-xl text-xs border border-zinc-300 bg-white text-zinc-900 outline-none focus:border-[#E63946]"
             />
-            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
           </div>
 
           <div className="flex items-center gap-1.5 overflow-x-auto text-xs">
-            <span className="text-slate-500 text-[11px] font-semibold mr-1">Status:</span>
+            <span className="text-zinc-500 text-[11px] font-semibold mr-1">Status:</span>
             {['all', 'Checked-In', 'Confirmed', 'Checked-Out'].map((st) => (
               <button
                 key={st}
                 onClick={() => setStatusFilter(st)}
-                className={`px-3 py-1.5 rounded-lg font-semibold transition cursor-pointer ${
+                className={`px-3 py-1.5 rounded-xl font-bold transition cursor-pointer ${
                   statusFilter === st
-                    ? 'bg-sky-500 text-white shadow-sm'
-                    : 'bg-slate-800/40 text-slate-400 hover:text-white'
+                    ? 'bg-[#18181B] text-white shadow-xs'
+                    : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200'
                 }`}
               >
                 {st === 'all' ? 'All Records' : st}

@@ -1,100 +1,205 @@
 'use client';
 
-import React from 'react';
-import { Users, Plus, CheckCircle2 } from 'lucide-react';
+import React, { useState } from 'react';
+import { Users, Plus, CheckCircle2, Search, X, DollarSign, Calendar } from 'lucide-react';
 import { EmployeeSalary } from '../types/hotel';
 
 interface PayrollModuleViewProps {
   employees: EmployeeSalary[];
 }
 
-export default function PayrollModuleView({ employees }: PayrollModuleViewProps) {
+export default function PayrollModuleView({ employees: initialEmployees }: PayrollModuleViewProps) {
+  const [employees, setEmployees] = useState<EmployeeSalary[]>(initialEmployees);
+  const [selectedDept, setSelectedDept] = useState<string>('All');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [showAddModal, setShowAddModal] = useState(false);
+
+  // New Employee state
+  const [name, setName] = useState('');
+  const [department, setDepartment] = useState<EmployeeSalary['department']>('Front Desk');
+  const [designation, setDesignation] = useState('');
+  const [shift, setShift] = useState<'Morning' | 'Evening' | 'Night'>('Morning');
+  const [netSalary, setNetSalary] = useState<number>(35000);
+
+  const departments: ('All' | EmployeeSalary['department'])[] = [
+    'All',
+    'Front Desk',
+    'Housekeeping',
+    'Kitchen & Restaurant',
+    'Security & Maintenance',
+    'Accounts',
+  ];
+
+  const filteredEmployees = employees.filter((emp) => {
+    const matchDept = selectedDept === 'All' || emp.department === selectedDept;
+    const matchSearch =
+      emp.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      emp.designation.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      emp.empId.toLowerCase().includes(searchQuery.toLowerCase());
+    return matchDept && matchSearch;
+  });
+
   const totalSalaries = employees.reduce((s, e) => s + e.netSalary, 0);
 
+  const handleAddEmployee = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name || !designation) return;
+
+    const newEmp: EmployeeSalary = {
+      id: `emp-${Date.now()}`,
+      empId: `EMP-${String(employees.length + 1).padStart(3, '0')}`,
+      name,
+      department,
+      designation,
+      shift,
+      basicSalary: netSalary * 0.8,
+      allowance: netSalary * 0.2,
+      deductions: 0,
+      netSalary,
+      status: 'Paid',
+    };
+
+    setEmployees([...employees, newEmp]);
+    setShowAddModal(false);
+    setName('');
+    setDesignation('');
+  };
+
   return (
-    <div className="space-y-5 max-w-7xl mx-auto pb-10">
-      <div className="bg-white rounded-2xl p-5 border border-slate-200/90 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+    <div className="space-y-6 max-w-7xl mx-auto pb-12 animate-fade-in-up">
+      {/* Header */}
+      <div className="bg-white rounded-3xl p-5 sm:p-6 border border-zinc-200/90 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-xl bg-amber-500/10 text-amber-600 flex items-center justify-center font-bold">
-              <Users className="w-4 h-4" />
+          <div className="flex items-center gap-2.5">
+            <div className="w-10 h-10 rounded-2xl bg-zinc-100 text-[#18181B] flex items-center justify-center font-bold shadow-xs">
+              <Users className="w-5 h-5" />
             </div>
-            <h1 className="text-base sm:text-lg font-bold text-slate-800">
-              Staff Payroll &amp; Attendance
-            </h1>
-            <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 font-bold">
-              Pakistan Club Inn HR
-            </span>
+            <div>
+              <div className="flex items-center gap-2">
+                <h1 className="text-base sm:text-lg font-black text-[#18181B] tracking-tight">
+                  Staff Payroll &amp; Attendance Roster
+                </h1>
+                <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-[#18181B] text-white font-extrabold uppercase">
+                  HR Portal
+                </span>
+              </div>
+              <p className="text-xs text-zinc-400 mt-0.5">
+                Pakistan Club Inn HR &bull; Departments, Shift Rotations &amp; Monthly Salary Disbursements
+              </p>
+            </div>
           </div>
-          <p className="text-xs text-slate-400 mt-0.5">
-            Departments, Shifts (Morning, Evening, Night), Salaries &amp; Staff Attendance
-          </p>
         </div>
 
-        <button className="px-3.5 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow-sm">
+        <button
+          onClick={() => setShowAddModal(true)}
+          className="px-4 py-2.5 rounded-2xl btn-luxury-red font-black text-xs flex items-center gap-2 cursor-pointer shadow-sm"
+        >
           <Plus className="w-4 h-4" />
           <span>Add Employee</span>
         </button>
       </div>
 
-      {/* Summary Cards */}
+      {/* Summary KPI Cards with Luxury Red Accents */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="bg-white p-4 rounded-2xl border border-slate-200/90 shadow-sm">
-          <span className="text-[11px] font-bold text-slate-400 uppercase">Total Monthly Payroll</span>
-          <div className="text-xl font-bold font-mono text-slate-800 mt-1">
-            Rs. {totalSalaries.toLocaleString('en-PK')}
+        <div className="bg-white p-5 rounded-3xl border border-zinc-200/90 shadow-sm flex items-center justify-between">
+          <div>
+            <span className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider">Total Monthly Payroll</span>
+            <div className="text-2xl font-black font-mono text-[#18181B] mt-1">
+              Rs. {totalSalaries.toLocaleString('en-PK')}
+            </div>
+          </div>
+          <div className="w-10 h-10 rounded-2xl bg-[#FFF1F2] text-[#E63946] flex items-center justify-center font-bold">
+            Rs
           </div>
         </div>
 
-        <div className="bg-white p-4 rounded-2xl border border-slate-200/90 shadow-sm">
-          <span className="text-[11px] font-bold text-slate-400 uppercase">Active Hotel Staff</span>
-          <div className="text-xl font-bold font-mono text-amber-600 mt-1">
-            {employees.length} Employees
+        <div className="bg-white p-5 rounded-3xl border border-zinc-200/90 shadow-sm flex items-center justify-between">
+          <div>
+            <span className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider">Active Staff Count</span>
+            <div className="text-2xl font-black text-[#18181B] mt-1">
+              {employees.length} Staff Members
+            </div>
+          </div>
+          <div className="w-10 h-10 rounded-2xl bg-zinc-100 text-zinc-700 flex items-center justify-center">
+            <Users className="w-5 h-5" />
           </div>
         </div>
 
-        <div className="bg-white p-4 rounded-2xl border border-slate-200/90 shadow-sm">
-          <span className="text-[11px] font-bold text-slate-400 uppercase">Today Attendance</span>
-          <div className="text-sm font-bold text-emerald-600 flex items-center gap-1 mt-2">
-            <CheckCircle2 className="w-4 h-4" />
-            <span>100% On-Duty across shifts</span>
+        <div className="bg-white p-5 rounded-3xl border border-zinc-200/90 shadow-sm flex items-center justify-between">
+          <div>
+            <span className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider">Shift Attendance</span>
+            <div className="text-sm font-black text-emerald-600 flex items-center gap-1.5 mt-1">
+              <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+              <span>100% On-Duty Across Shifts</span>
+            </div>
           </div>
+          <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+            ACTIVE
+          </span>
         </div>
       </div>
 
-      {/* Staff Table */}
-      <div className="bg-white rounded-2xl border border-slate-200/90 shadow-sm overflow-hidden p-5 space-y-4">
-        <h2 className="text-sm font-bold text-slate-800">Hotel Staff &amp; Shift Register</h2>
+      {/* Staff Table & Department Filter */}
+      <div className="bg-white rounded-3xl border border-zinc-200/90 shadow-sm overflow-hidden p-6 space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 text-xs">
+            {departments.map((d) => (
+              <button
+                key={d}
+                onClick={() => setSelectedDept(d)}
+                className={`px-3.5 py-1.5 rounded-xl font-bold whitespace-nowrap transition cursor-pointer ${
+                  selectedDept === d
+                    ? 'bg-[#18181B] text-white shadow-xs'
+                    : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200'
+                }`}
+              >
+                {d}
+              </button>
+            ))}
+          </div>
+
+          <div className="relative w-full sm:w-64">
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search staff name or role..."
+              className="w-full px-3.5 py-2 pl-9 rounded-xl text-xs border border-zinc-300 bg-white outline-none focus:border-[#E63946]"
+            />
+            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" />
+          </div>
+        </div>
+
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
-            <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-semibold">
+            <thead className="bg-zinc-50 border-b border-zinc-200 text-zinc-500 font-bold uppercase tracking-wider text-[11px]">
               <tr>
-                <th className="p-3">Emp ID</th>
-                <th className="p-3">Employee Name</th>
-                <th className="p-3">Department</th>
-                <th className="p-3">Designation</th>
-                <th className="p-3">Shift</th>
-                <th className="p-3 font-mono text-right">Net Salary</th>
-                <th className="p-3 text-right">Status</th>
+                <th className="p-3.5">Emp ID</th>
+                <th className="p-3.5">Employee Name</th>
+                <th className="p-3.5">Department</th>
+                <th className="p-3.5">Designation</th>
+                <th className="p-3.5">Shift Routine</th>
+                <th className="p-3.5 font-mono text-right">Net Monthly Salary</th>
+                <th className="p-3.5 text-right">Status</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
-              {employees.map((emp) => (
-                <tr key={emp.id} className="hover:bg-slate-50 transition">
-                  <td className="p-3 font-mono font-bold text-sky-700">{emp.empId}</td>
-                  <td className="p-3 font-bold text-slate-800">{emp.name}</td>
-                  <td className="p-3 text-slate-600">{emp.department}</td>
-                  <td className="p-3 text-slate-500">{emp.designation}</td>
-                  <td className="p-3">
-                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-700">
+            <tbody className="divide-y divide-zinc-100">
+              {filteredEmployees.map((emp) => (
+                <tr key={emp.id} className="hover:bg-zinc-50 transition">
+                  <td className="p-3.5 font-mono font-black text-[#18181B]">{emp.empId}</td>
+                  <td className="p-3.5 font-extrabold text-[#18181B]">{emp.name}</td>
+                  <td className="p-3.5 text-zinc-600 font-medium">{emp.department}</td>
+                  <td className="p-3.5 text-zinc-500">{emp.designation}</td>
+                  <td className="p-3.5">
+                    <span className="px-2.5 py-1 rounded-xl text-[10px] font-extrabold bg-zinc-100 text-zinc-700">
                       {emp.shift}
                     </span>
                   </td>
-                  <td className="p-3 font-mono text-right font-bold text-slate-900">
+                  <td className="p-3.5 font-mono text-right font-black text-[#18181B]">
                     Rs. {emp.netSalary.toLocaleString('en-PK')}
                   </td>
-                  <td className="p-3 text-right">
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-700">
+                  <td className="p-3.5 text-right">
+                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
                       {emp.status}
                     </span>
                   </td>
@@ -104,7 +209,103 @@ export default function PayrollModuleView({ employees }: PayrollModuleViewProps)
           </table>
         </div>
       </div>
+
+      {/* Add Employee Modal */}
+      {showAddModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-fade-in-up">
+          <div className="bg-white rounded-3xl p-6 max-w-md w-full border border-zinc-200 shadow-2xl">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-base font-black text-[#18181B]">Add Hotel Staff Member</h3>
+              <button
+                onClick={() => setShowAddModal(false)}
+                className="p-1 rounded-xl hover:bg-zinc-100 text-zinc-400 hover:text-zinc-700"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleAddEmployee} className="space-y-3.5 text-xs">
+              <div>
+                <label className="block font-bold text-zinc-500 mb-1">Full Name</label>
+                <input
+                  type="text"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="e.g. Asadullah Jamali"
+                  className="w-full px-3 py-2 rounded-xl border border-zinc-300"
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-zinc-500 mb-1">Department</label>
+                  <select
+                    value={department}
+                    onChange={(e) => setDepartment(e.target.value as EmployeeSalary['department'])}
+                    className="w-full px-3 py-2 rounded-xl border border-zinc-300 bg-white"
+                  >
+                    {departments.filter(d => d !== 'All').map(d => (
+                      <option key={d} value={d}>{d}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block font-bold text-zinc-500 mb-1">Shift</label>
+                  <select
+                    value={shift}
+                    onChange={(e) => setShift(e.target.value as any)}
+                    className="w-full px-3 py-2 rounded-xl border border-zinc-300 bg-white"
+                  >
+                    <option value="Morning">Morning (08:00 - 16:00)</option>
+                    <option value="Evening">Evening (16:00 - 00:00)</option>
+                    <option value="Night">Night (00:00 - 08:00)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-bold text-zinc-500 mb-1">Designation</label>
+                <input
+                  type="text"
+                  value={designation}
+                  onChange={(e) => setDesignation(e.target.value)}
+                  placeholder="e.g. Front Desk Officer, Night Auditor, Room Boy"
+                  className="w-full px-3 py-2 rounded-xl border border-zinc-300"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-zinc-500 mb-1">Net Monthly Salary (PKR)</label>
+                <input
+                  type="number"
+                  value={netSalary}
+                  onChange={(e) => setNetSalary(Number(e.target.value))}
+                  className="w-full px-3 py-2 rounded-xl border border-zinc-300 font-mono font-bold"
+                  required
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-3 border-t border-zinc-100">
+                <button
+                  type="button"
+                  onClick={() => setShowAddModal(false)}
+                  className="px-4 py-2 rounded-xl text-zinc-600 hover:bg-zinc-100 font-bold"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 rounded-xl btn-luxury-red font-bold"
+                >
+                  Save Employee
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
-

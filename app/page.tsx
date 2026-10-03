@@ -37,7 +37,7 @@ import {
   AccountLedgerEntry,
   EmployeeSalary,
 } from '../types/hotel';
-import { CheckCircle2, Printer, X } from 'lucide-react';
+import { CheckCircle2, Printer, X, Sparkles } from 'lucide-react';
 
 export default function Home() {
   const [viewMode, setViewMode] = useState<'splash' | 'login' | 'app'>('splash');
@@ -102,27 +102,27 @@ export default function Home() {
       checkInDate: newBookingData.checkInDate,
       checkOutDate: newBookingData.checkOutDate,
       nights: newBookingData.nights,
+      taxAmount: 0,
       roomCharges: newBookingData.totalAmount,
       restaurantCharges: 0,
       serviceCharges: 0,
-      taxAmount: 0,
       totalAmount: newBookingData.totalAmount,
       advancePaid: newBookingData.advancePaid,
       netPayable: newBookingData.remainingBalance,
-      status: newBookingData.remainingBalance === 0 ? 'Paid' : 'Partial',
+      status: newBookingData.remainingBalance === 0 ? 'Paid' : newBookingData.advancePaid > 0 ? 'Partial' : 'Unpaid',
+      dateGenerated: new Date().toISOString().replace('T', ' ').slice(0, 16),
       paymentMethod: newBookingData.paymentMethod,
-      dateGenerated: newBookingData.checkInDate,
     };
 
-    // Update rooms
+    // Update Room status to occupied
     setRooms((prev) =>
       prev.map((r) =>
         r.roomNumber === newBookingData.roomNumber
           ? {
               ...r,
-              status: 'occupied',
+              status: 'occupied' as const,
               currentGuest: {
-                id: `g-${Date.now()}`,
+                id: `guest-${Date.now()}`,
                 name: newBookingData.guestName,
                 phone: newBookingData.phone,
                 cnic: newBookingData.cnic,
@@ -138,84 +138,139 @@ export default function Home() {
 
     setBookings((prev) => [newBooking, ...prev]);
     setInvoices((prev) => [newInvoice, ...prev]);
+
+    // Record ledger advance entry
+    if (newBookingData.advancePaid > 0) {
+      const jvNumber = `JV-2026-${String(ledgerEntries.length + 1).padStart(3, '0')}`;
+      const newLedger: AccountLedgerEntry = {
+        id: `jv-${Date.now()}`,
+        voucherNumber: jvNumber,
+        date: new Date().toISOString().slice(0, 10),
+        accountTitle: `Advance Deposit Room ${newBookingData.roomNumber}`,
+        accountType: 'Cash in Hand',
+        description: `Advance received from ${newBookingData.guestName} (${newBookingData.paymentMethod})`,
+        debit: newBookingData.advancePaid,
+        credit: 0,
+      };
+      setLedgerEntries((prev) => [newLedger, ...prev]);
+    }
+
     setIsCheckInOpen(false);
-    showToast(`Room ${newBookingData.roomNumber} checked in! Generated Invoice ${invNumber}`);
+    showToast(`Check-In Successful! Invoice ${invNumber} generated for Room ${newBookingData.roomNumber}.`);
   };
 
   // Check-Out handler
   const handleConfirmCheckOut = (bookingId: string, finalPayment: number) => {
-    const target = bookings.find((b) => b.id === bookingId);
-    if (!target) return;
+    const booking = bookings.find((b) => b.id === bookingId);
+    if (!booking) return;
 
-    setBookings((prev) =>
-      prev.map((b) => (b.id === bookingId ? { ...b, status: 'Checked-Out', remainingBalance: 0 } : b))
+    // Update room to available
+    setRooms((prev) =>
+      prev.map((r) =>
+        r.roomNumber === booking.roomNumber
+          ? { ...r, status: 'available', currentGuest: undefined }
+          : r
+      )
     );
 
+    // Update booking status
+    setBookings((prev) =>
+      prev.map((b) =>
+        b.id === bookingId
+          ? { ...b, status: 'Checked-Out', remainingBalance: 0 }
+          : b
+      )
+    );
+
+    // Update or mark invoice paid
     setInvoices((prev) =>
       prev.map((inv) =>
-        inv.bookingNumber === target.bookingNumber
+        inv.bookingNumber === booking.bookingNumber
           ? {
               ...inv,
               status: 'Paid',
-              advancePaid: inv.advancePaid + finalPayment,
+              advancePaid: inv.totalAmount,
               netPayable: 0,
             }
           : inv
       )
     );
 
-    setRooms((prev) =>
-      prev.map((r) =>
-        r.roomNumber === target.roomNumber
-          ? { ...r, status: 'cleaning', currentGuest: undefined }
-          : r
-      )
-    );
+    // Add final payment ledger entry
+    if (finalPayment > 0) {
+      const jvNumber = `JV-2026-${String(ledgerEntries.length + 1).padStart(3, '0')}`;
+      const newLedger: AccountLedgerEntry = {
+        id: `jv-${Date.now()}`,
+        voucherNumber: jvNumber,
+        date: new Date().toISOString().slice(0, 10),
+        accountTitle: `Folio Settlement Room ${booking.roomNumber}`,
+        accountType: 'Room Sales Revenue',
+        description: `Final checkout bill settled by ${booking.guestName}`,
+        debit: finalPayment,
+        credit: 0,
+      };
+      setLedgerEntries((prev) => [newLedger, ...prev]);
+    }
 
     setCheckOutBooking(null);
-    showToast(`Room ${target.roomNumber} checked out and settled!`);
+    showToast(`Room ${booking.roomNumber} checkout completed! Bill settled & room marked available.`);
   };
 
-  // Restaurant Order
+  // Restaurant Order Placement
   const handlePlaceRestaurantOrder = (order: RestaurantOrder) => {
     setRestaurantOrders((prev) => [order, ...prev]);
 
     // If order was billed to room folio, update corresponding invoice & booking
-    if (order.orderType === 'Room Service Delivery') {
-      const roomNum = order.tableOrRoom.replace('Room ', '').trim();
+    if (order.roomNumber && order.paymentStatus === 'Billed to Room Folio') {
       setInvoices((prev) =>
-        prev.map((inv) => {
-          if (inv.roomNumber === roomNum && inv.status !== 'Paid') {
-            const updatedTotal = inv.totalAmount + order.totalAmount;
-            return {
-              ...inv,
-              restaurantCharges: inv.restaurantCharges + order.totalAmount,
-              totalAmount: updatedTotal,
-              netPayable: updatedTotal - inv.advancePaid,
-            };
-          }
-          return inv;
-        })
+        prev.map((inv) =>
+          inv.roomNumber === order.roomNumber && inv.status !== 'Paid'
+            ? {
+                ...inv,
+                restaurantCharges: inv.restaurantCharges + order.totalAmount,
+                totalAmount: inv.totalAmount + order.totalAmount,
+                netPayable: inv.netPayable + order.totalAmount,
+              }
+            : inv
+        )
+      );
+
+      setBookings((prev) =>
+        prev.map((b) =>
+          b.roomNumber === order.roomNumber && b.status === 'Checked-In'
+            ? {
+                ...b,
+                totalAmount: b.totalAmount + order.totalAmount,
+                remainingBalance: b.remainingBalance + order.totalAmount,
+              }
+            : b
+        )
       );
     }
 
-    showToast(`Order #${order.orderNumber} placed (${order.paymentStatus})`);
+    showToast(`Order ${order.orderNumber} placed for ${order.tableOrRoom}! Total: Rs. ${order.totalAmount}`);
   };
 
   const handleUpdateOrderStatus = (orderId: string, status: RestaurantOrder['status']) => {
     setRestaurantOrders((prev) =>
       prev.map((o) => (o.id === orderId ? { ...o, status } : o))
     );
-    showToast(`Order updated to ${status}`);
+    showToast(`Order status updated to "${status}".`);
   };
 
   return (
-    <div className="min-h-screen bg-[#FAFAFA] text-[#18181B] flex flex-col font-sans select-none">
-      {/* Toast Banner */}
+    <div className="min-h-screen bg-[#FAFAFA] text-[#18181B] font-sans antialiased selection:bg-[#FFF1F2] selection:text-[#E63946]">
+      {/* Toast Notification with Luxury Red styling */}
       {toastMessage && (
-        <div className="fixed bottom-6 right-6 z-50 flex items-center gap-2.5 px-4 py-3 rounded-2xl bg-slate-900 text-white font-semibold text-xs shadow-2xl animate-bounce border border-slate-700">
-          <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+        <div className="fixed bottom-6 right-6 z-50 flex items-center gap-2.5 px-4 py-3 rounded-2xl bg-[#18181B] text-[#FAFAFA] shadow-2xl border border-white/10 animate-fade-in-up text-xs font-bold">
+          <CheckCircle2 className="w-4 h-4 text-[#E63946]" />
           <span>{toastMessage}</span>
+          <button
+            onClick={() => setToastMessage(null)}
+            className="ml-2 text-zinc-400 hover:text-white"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
         </div>
       )}
 
@@ -236,7 +291,7 @@ export default function Home() {
 
       {/* 3. Main Application Canvas */}
       {viewMode === 'app' && (
-        <div className="min-h-screen flex flex-col">
+        <div className="min-h-screen flex flex-col bg-[#FAFAFA]">
           {/* Top Bar matching Screenshot 1 */}
           <TopNavbar
             currentPortal={currentPortal}
@@ -247,6 +302,7 @@ export default function Home() {
             onToggleSidebar={() => {}}
             onLogout={() => setViewMode('login')}
             username={username}
+            onOpenCheckIn={() => setIsCheckInOpen(true)}
           />
 
           <div className="flex-1 flex overflow-hidden">
@@ -264,11 +320,11 @@ export default function Home() {
             />
 
             {/* Main Workspace Area */}
-            <main className="flex-1 overflow-y-auto p-4 sm:p-6">
+            <main className="flex-1 overflow-y-auto p-4 sm:p-6 bg-[#FAFAFA]">
               {/* Hotel Portal Active */}
               {currentPortal === 'hotel' && (
                 <>
-                  {/* View: Hub / Dashboard (Exact Screenshot 1 & 2) */}
+                  {/* View: Hub / Dashboard */}
                   {currentView === 'hub' && (
                     <MainHubDashboard
                       username={username}
@@ -284,10 +340,11 @@ export default function Home() {
                           setCurrentView('hms-invoice');
                         }
                       }}
+                      onOpenCheckIn={() => setIsCheckInOpen(true)}
                     />
                   )}
 
-                  {/* View: HMS (Screenshots 4 - Invoices, Bookings, Rooms, BTC, Events) */}
+                  {/* View: HMS (Invoices, Bookings, Rooms, Categories, BTC, Events) */}
                   {(currentView === 'hms' || currentView.startsWith('hms-')) && (
                     <HMSModuleView
                       initialSubTab={
@@ -314,12 +371,12 @@ export default function Home() {
                     />
                   )}
 
-                  {/* View: Accounts (Screenshot 3) */}
+                  {/* View: Accounts */}
                   {(currentView === 'accounts' || currentView.startsWith('acc-')) && (
                     <AccountsModuleView entries={ledgerEntries} />
                   )}
 
-                  {/* View: Payroll (Screenshot 5) */}
+                  {/* View: Payroll */}
                   {(currentView === 'payroll' || currentView.startsWith('pay-')) && (
                     <PayrollModuleView employees={employees} />
                   )}
@@ -348,7 +405,6 @@ export default function Home() {
           rooms={rooms}
           onClose={() => setIsCheckInOpen(false)}
           onConfirmCheckIn={handleConfirmCheckIn}
-          isDarkTheme={false}
         />
       )}
 
@@ -359,52 +415,51 @@ export default function Home() {
           restaurantOrders={restaurantOrders}
           onClose={() => setCheckOutBooking(null)}
           onConfirmCheckOut={handleConfirmCheckOut}
-          isDarkTheme={false}
         />
       )}
 
-      {/* Detailed Invoice View & Print Modal */}
+      {/* Detailed Invoice View & Print Modal with #E63946 + #FFF1F2 + #18181B + #FAFAFA */}
       {inspectedInvoice && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fadeIn">
-          <div className="w-full max-w-lg rounded-2xl bg-white border border-slate-200 shadow-2xl p-6 relative max-h-[85vh] overflow-y-auto text-xs">
-            <div className="flex items-center justify-between pb-3 mb-3 border-b border-slate-200">
-              <span className="font-extrabold text-sm text-sky-700">
-                INVOICE #{inspectedInvoice.invoiceNumber}
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fade-in-up">
+          <div className="w-full max-w-lg rounded-3xl bg-white border border-zinc-200 shadow-2xl p-6 relative max-h-[85vh] overflow-y-auto text-xs">
+            <div className="flex items-center justify-between pb-3 mb-3 border-b border-zinc-200">
+              <span className="font-black text-sm text-[#18181B]">
+                HOTEL FOLIO #{inspectedInvoice.invoiceNumber}
               </span>
               <button
                 onClick={() => setInspectedInvoice(null)}
-                className="w-7 h-7 rounded-lg bg-slate-100 flex items-center justify-center text-slate-500 hover:bg-slate-200"
+                className="w-8 h-8 rounded-xl bg-zinc-100 flex items-center justify-center text-zinc-500 hover:bg-zinc-200 cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
             {/* Letterhead */}
-            <div className="text-center py-2 border-b border-slate-100">
-              <h2 className="text-base font-extrabold uppercase text-slate-900 tracking-wider">
+            <div className="text-center py-2 border-b border-zinc-100">
+              <h2 className="text-base font-black uppercase text-[#18181B] tracking-wider">
                 PAKISTAN CLUB INN HOTEL
               </h2>
-              <p className="text-[11px] text-slate-500">
+              <p className="text-[11px] text-zinc-500">
                 City Bypass Road, Sukkur &bull; Tel: 071-5806409 / +92 300 7555850
               </p>
-              <div className="text-[10px] text-slate-400 mt-1 font-mono">
+              <div className="text-[10px] text-zinc-400 mt-1 font-mono">
                 Date: {inspectedInvoice.dateGenerated} &bull; Booking Ref: {inspectedInvoice.bookingNumber}
               </div>
             </div>
 
             {/* Guest & Room Details */}
-            <div className="grid grid-cols-2 gap-3 py-3 border-b border-slate-100">
+            <div className="grid grid-cols-2 gap-3 py-3 border-b border-zinc-100">
               <div>
-                <span className="text-[10px] text-slate-400 font-bold uppercase">Guest</span>
-                <div className="font-bold text-slate-800 text-sm">{inspectedInvoice.guestName}</div>
-                <div className="text-[11px] text-slate-500 font-mono">{inspectedInvoice.cnic}</div>
-                <div className="text-[11px] text-slate-500">{inspectedInvoice.phone}</div>
+                <span className="text-[10px] text-zinc-400 font-bold uppercase">Guest</span>
+                <div className="font-black text-[#18181B] text-sm">{inspectedInvoice.guestName}</div>
+                <div className="text-[11px] text-zinc-500 font-mono">{inspectedInvoice.cnic}</div>
+                <div className="text-[11px] text-zinc-500">{inspectedInvoice.phone}</div>
               </div>
               <div className="text-right">
-                <span className="text-[10px] text-slate-400 font-bold uppercase">Room Allotment</span>
-                <div className="font-bold text-sky-700 text-sm">Room {inspectedInvoice.roomNumber}</div>
-                <div className="text-[11px] text-slate-500">{inspectedInvoice.roomType}</div>
-                <div className="text-[10px] text-slate-400">
+                <span className="text-[10px] text-zinc-400 font-bold uppercase">Room Allotment</span>
+                <div className="font-black text-[#E63946] text-sm">Room {inspectedInvoice.roomNumber}</div>
+                <div className="text-[11px] text-zinc-500">{inspectedInvoice.roomType}</div>
+                <div className="text-[10px] text-zinc-400">
                   {inspectedInvoice.nights} Night(s) Stay
                 </div>
               </div>
@@ -412,49 +467,49 @@ export default function Home() {
 
             {/* Financial Line Items */}
             <div className="py-3 space-y-2 font-mono">
-              <div className="flex justify-between text-slate-600">
+              <div className="flex justify-between text-zinc-600">
                 <span>Room Charges:</span>
                 <span>Rs. {inspectedInvoice.roomCharges.toLocaleString('en-PK')}</span>
               </div>
               {inspectedInvoice.restaurantCharges > 0 && (
-                <div className="flex justify-between text-slate-600">
+                <div className="flex justify-between text-zinc-600">
                   <span>Lazzati Restaurant Food:</span>
                   <span>Rs. {inspectedInvoice.restaurantCharges.toLocaleString('en-PK')}</span>
                 </div>
               )}
               {inspectedInvoice.serviceCharges > 0 && (
-                <div className="flex justify-between text-slate-600">
+                <div className="flex justify-between text-zinc-600">
                   <span>Service / Laundry Charges:</span>
                   <span>Rs. {inspectedInvoice.serviceCharges.toLocaleString('en-PK')}</span>
                 </div>
               )}
-              <div className="flex justify-between font-bold text-slate-900 pt-2 border-t border-slate-100">
+              <div className="flex justify-between font-black text-[#18181B] pt-2 border-t border-zinc-100">
                 <span>Total Gross Amount:</span>
                 <span>Rs. {inspectedInvoice.totalAmount.toLocaleString('en-PK')}</span>
               </div>
-              <div className="flex justify-between text-emerald-600">
+              <div className="flex justify-between text-emerald-700 font-bold">
                 <span>Advance Paid ({inspectedInvoice.paymentMethod}):</span>
                 <span>- Rs. {inspectedInvoice.advancePaid.toLocaleString('en-PK')}</span>
               </div>
-              <div className="flex justify-between font-black text-amber-700 text-sm pt-2 border-t border-slate-200">
-                <span>Net Balance Payable:</span>
+              <div className="flex justify-between font-black text-[#E63946] text-sm pt-2 border-t border-zinc-200">
+                <span>Net Balance Due:</span>
                 <span>Rs. {inspectedInvoice.netPayable.toLocaleString('en-PK')}</span>
               </div>
             </div>
 
             {/* Actions */}
-            <div className="pt-4 border-t border-slate-100 flex items-center justify-between">
+            <div className="pt-4 border-t border-zinc-100 flex items-center justify-between">
               <button
                 onClick={() => window.print()}
-                className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs flex items-center gap-1.5 cursor-pointer"
+                className="px-4 py-2.5 rounded-2xl bg-zinc-100 hover:bg-zinc-200 text-zinc-800 font-bold text-xs flex items-center gap-1.5 cursor-pointer"
               >
-                <Printer className="w-4 h-4 text-sky-600" />
+                <Printer className="w-4 h-4 text-[#E63946]" />
                 <span>Print Official Receipt</span>
               </button>
 
               <button
                 onClick={() => setInspectedInvoice(null)}
-                className="px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs cursor-pointer"
+                className="px-4 py-2.5 rounded-2xl btn-luxury-red font-bold text-xs cursor-pointer"
               >
                 Close
               </button>

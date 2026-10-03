@@ -8,10 +8,10 @@ import {
   ChevronDown,
   LogOut,
   ShieldCheck,
-  Sparkles,
-  Search,
   Bell,
-  SlidersHorizontal,
+  UserPlus,
+  Clock,
+  Check,
 } from 'lucide-react';
 
 interface TopNavbarProps {
@@ -20,6 +20,7 @@ interface TopNavbarProps {
   onToggleSidebar: () => void;
   onLogout: () => void;
   username?: string;
+  onOpenCheckIn?: () => void;
 }
 
 export default function TopNavbar({
@@ -28,8 +29,21 @@ export default function TopNavbar({
   onToggleSidebar,
   onLogout,
   username = 'rfjalbani',
+  onOpenCheckIn,
 }: TopNavbarProps) {
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [notifications, setNotifications] = useState([
+    { id: 1, text: 'Room 202 requested Checkout Folio invoice', time: '5m ago', read: false },
+    { id: 2, text: 'Lazzati POS: Table 4 ordered Mutton Karahi', time: '12m ago', read: false },
+    { id: 3, text: 'Sukkur IBA BTC Corporate booking approved', time: '1h ago', read: true },
+  ]);
+
+  const unreadCount = notifications.filter(n => !n.read).length;
+
+  const markAllRead = () => {
+    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+  };
 
   return (
     <header className="h-14 bg-[#18181B] text-[#FAFAFA] flex items-center justify-between px-3 md:px-6 border-b border-white/[0.08] select-none z-40 sticky top-0 shadow-sm backdrop-blur-md">
@@ -45,7 +59,7 @@ export default function TopNavbar({
 
         {/* Hotel Crest & Name */}
         <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-[#E63946] to-amber-500 flex items-center justify-center text-white shadow-md shadow-[#E63946]/20 font-black text-xs">
+          <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-[#E63946] to-amber-500 flex items-center justify-center text-white shadow-md shadow-[#E63946]/25 font-black text-xs">
             PC
           </div>
           <div>
@@ -53,7 +67,7 @@ export default function TopNavbar({
               <span className="font-extrabold tracking-wider text-xs sm:text-sm text-[#FAFAFA] uppercase">
                 PAKISTAN CLUB INN
               </span>
-              <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#FFF1F2] text-[#E63946] border border-[#E63946]/25 font-bold uppercase hidden sm:inline-block">
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#FFF1F2] text-[#E63946] border border-[#E63946]/30 font-extrabold uppercase hidden sm:inline-block">
                 SUKKUR
               </span>
             </div>
@@ -70,7 +84,7 @@ export default function TopNavbar({
           onClick={() => onSwitchPortal('hotel')}
           className={`px-3.5 py-1.5 rounded-xl flex items-center gap-2 transition-all cursor-pointer ${
             currentPortal === 'hotel'
-              ? 'bg-[#E63946] text-white shadow-md shadow-[#E63946]/30 font-bold'
+              ? 'bg-[#E63946] text-white shadow-md shadow-[#E63946]/30 font-black'
               : 'text-zinc-400 hover:text-white hover:bg-white/[0.04]'
           }`}
         >
@@ -83,7 +97,7 @@ export default function TopNavbar({
           onClick={() => onSwitchPortal('restaurant')}
           className={`px-3.5 py-1.5 rounded-xl flex items-center gap-2 transition-all cursor-pointer ${
             currentPortal === 'restaurant'
-              ? 'bg-amber-600 text-white shadow-md shadow-amber-600/30 font-bold'
+              ? 'bg-amber-600 text-white shadow-md shadow-amber-600/30 font-black'
               : 'text-zinc-400 hover:text-white hover:bg-white/[0.04]'
           }`}
         >
@@ -95,6 +109,64 @@ export default function TopNavbar({
 
       {/* Right controls */}
       <div className="flex items-center gap-2 sm:gap-3">
+        {/* Quick Check-In CTA button */}
+        {onOpenCheckIn && currentPortal === 'hotel' && (
+          <button
+            onClick={onOpenCheckIn}
+            className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#E63946] hover:bg-[#d62839] text-white text-xs font-bold transition-all shadow-sm shadow-[#E63946]/20 cursor-pointer"
+          >
+            <UserPlus className="w-3.5 h-3.5" />
+            <span>Check-In</span>
+          </button>
+        )}
+
+        {/* Notifications Bell Dropdown */}
+        <div className="relative">
+          <button
+            onClick={() => setNotificationsOpen(!notificationsOpen)}
+            className="p-2 rounded-xl text-zinc-300 hover:text-white hover:bg-white/[0.06] transition-all relative cursor-pointer"
+            title="Hotel Notifications"
+          >
+            <Bell className="w-4 h-4" />
+            {unreadCount > 0 && (
+              <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-[#E63946] ring-2 ring-[#18181B]" />
+            )}
+          </button>
+
+          {notificationsOpen && (
+            <div className="absolute right-0 mt-2 w-72 rounded-2xl bg-[#18181B] border border-white/[0.12] shadow-2xl text-xs py-2 z-50 animate-fade-in-up">
+              <div className="px-3.5 py-2 border-b border-white/[0.08] flex items-center justify-between">
+                <span className="font-bold text-white text-xs">Hotel Activity Log</span>
+                {unreadCount > 0 && (
+                  <button
+                    onClick={markAllRead}
+                    className="text-[10px] text-zinc-400 hover:text-[#E63946] transition flex items-center gap-1 cursor-pointer"
+                  >
+                    <Check className="w-3 h-3" />
+                    <span>Mark read</span>
+                  </button>
+                )}
+              </div>
+              <div className="divide-y divide-white/[0.06] max-h-56 overflow-y-auto">
+                {notifications.map((n) => (
+                  <div
+                    key={n.id}
+                    className={`p-3 text-left transition hover:bg-white/[0.03] ${
+                      !n.read ? 'bg-white/[0.02]' : ''
+                    }`}
+                  >
+                    <div className="text-zinc-200 text-xs leading-relaxed">{n.text}</div>
+                    <div className="text-[10px] text-zinc-500 mt-1 flex items-center gap-1">
+                      <Clock className="w-3 h-3" />
+                      <span>{n.time}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
         {/* BETA Pill */}
         <span className="hidden lg:inline-flex items-center gap-1.5 text-[10px] font-bold tracking-widest text-zinc-400 px-2.5 py-1 rounded-full bg-white/[0.04] border border-white/[0.08]">
           <span className="w-1.5 h-1.5 rounded-full bg-[#E63946] animate-ping" />
@@ -112,7 +184,7 @@ export default function TopNavbar({
             </div>
             <div className="text-left hidden sm:block">
               <div className="text-xs font-bold text-[#FAFAFA] leading-tight">{username}</div>
-              <div className="text-[10px] text-zinc-400">General Manager</div>
+              <div className="text-[10px] text-zinc-400">Front Desk Manager</div>
             </div>
             <ChevronDown className="w-3.5 h-3.5 text-zinc-400 ml-1" />
           </button>
