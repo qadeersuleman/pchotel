@@ -25,6 +25,7 @@ import {
   initialLedgerEntries,
   initialEmployees,
 } from '../lib/mockData';
+import { dummyDb } from '../lib/dummyDb';
 import {
   Room,
   Booking,
@@ -36,14 +37,16 @@ import {
   InventoryItem,
   AccountLedgerEntry,
   EmployeeSalary,
+  RestaurantVoucher,
+  VoucherType,
 } from '../types/hotel';
 import { CheckCircle2, Printer, X, Sparkles } from 'lucide-react';
 
 export default function Home() {
   const [viewMode, setViewMode] = useState<'splash' | 'login' | 'app'>('splash');
-  const [currentPortal, setCurrentPortal] = useState<'hotel' | 'restaurant'>('hotel');
-  const [currentView, setCurrentView] = useState<string>('hub');
-  const [username, setUsername] = useState<string>('rfjalbani');
+  const [currentPortal, setCurrentPortal] = useState<'hotel' | 'restaurant'>('restaurant');
+  const [currentView, setCurrentView] = useState<string>('restaurant');
+  const [username, setUsername] = useState<string>('Chef Ghulam Rasool');
   const [isDarkTheme, setIsDarkTheme] = useState(false);
 
   // Core Data States
@@ -55,8 +58,19 @@ export default function Home() {
   const [menuItems, setMenuItems] = useState<RestaurantItem[]>(initialMenuItems);
   const [restaurantOrders, setRestaurantOrders] = useState<RestaurantOrder[]>(initialRestaurantOrders);
   const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>(initialInventoryItems);
+  const [restaurantVouchers, setRestaurantVouchers] = useState<RestaurantVoucher[]>([]);
   const [ledgerEntries, setLedgerEntries] = useState<AccountLedgerEntry[]>(initialLedgerEntries);
   const [employees, setEmployees] = useState<EmployeeSalary[]>(initialEmployees);
+
+  // Load persistent dummy DB state on client mount
+  useEffect(() => {
+    const dbState = dummyDb.loadState();
+    if (dbState.vouchers) setRestaurantVouchers(dbState.vouchers);
+    if (dbState.orders) setRestaurantOrders(dbState.orders);
+    if (dbState.inventoryItems) setInventoryItems(dbState.inventoryItems);
+    if (dbState.menuItems) setMenuItems(dbState.menuItems);
+  }, []);
+
 
   // Modals
   const [isCheckInOpen, setIsCheckInOpen] = useState(false);
@@ -216,8 +230,9 @@ export default function Home() {
     showToast(`Room ${booking.roomNumber} checkout completed! Bill settled & room marked available.`);
   };
 
-  // Restaurant Order Placement
+  // Restaurant Order Placement (Dummy DB Synced)
   const handlePlaceRestaurantOrder = (order: RestaurantOrder) => {
+    dummyDb.addOrder(order);
     setRestaurantOrders((prev) => [order, ...prev]);
 
     // If order was billed to room folio, update corresponding invoice & booking
@@ -248,15 +263,58 @@ export default function Home() {
       );
     }
 
-    showToast(`Order ${order.orderNumber} placed for ${order.tableOrRoom}! Total: Rs. ${order.totalAmount}`);
+    showToast(`Order ${order.orderNumber} saved to Dummy DB! (${order.tableOrRoom})`);
   };
 
   const handleUpdateOrderStatus = (orderId: string, status: RestaurantOrder['status']) => {
+    dummyDb.updateOrderStatus(orderId, status);
     setRestaurantOrders((prev) =>
       prev.map((o) => (o.id === orderId ? { ...o, status } : o))
     );
-    showToast(`Order status updated to "${status}".`);
+    showToast(`Order status updated to "${status}" & saved.`);
   };
+
+  // Restaurant Voucher Handlers (Dummy DB Backed)
+  const handleAddRestaurantVoucher = (
+    voucherData: Omit<RestaurantVoucher, 'id' | 'voucherNumber'> & { customVoucherNumber?: string }
+  ) => {
+    const newV = dummyDb.addVoucher(voucherData);
+    setRestaurantVouchers((prev) => [newV, ...prev]);
+    showToast(`${newV.voucherType} #${newV.voucherNumber} created & saved to Dummy DB!`);
+  };
+
+  const handleDeleteRestaurantVoucher = (id: string) => {
+    dummyDb.deleteVoucher(id);
+    setRestaurantVouchers((prev) => prev.filter((v) => v.id !== id));
+    showToast('Voucher removed from Dummy DB.');
+  };
+
+  const handleImportRestaurantVouchers = (
+    incoming: Array<Partial<RestaurantVoucher> & { voucherType: VoucherType; amount: number; narration: string }>
+  ) => {
+    const { count, imported } = dummyDb.importVouchers(incoming);
+    setRestaurantVouchers((prev) => [...imported, ...prev]);
+    showToast(`Successfully imported ${count} vouchers into Dummy DB!`);
+  };
+
+  const handleAutoSyncRestaurantOrders = () => {
+    const { newCrvCount, newJvCount } = dummyDb.autoSyncOrdersToVouchers(restaurantOrders);
+    if (newCrvCount === 0 && newJvCount === 0) {
+      showToast('All active POS orders are already recorded as vouchers in Dummy DB.');
+    } else {
+      setRestaurantVouchers(dummyDb.getVouchers());
+      showToast(`Auto-Sync complete: ${newCrvCount} CRV (Cash) & ${newJvCount} JV (Room Folio) generated!`);
+    }
+  };
+
+  const handleResetRestaurantDb = () => {
+    const fresh = dummyDb.resetToDefault();
+    setRestaurantVouchers(fresh.vouchers);
+    setRestaurantOrders(fresh.orders);
+    setInventoryItems(fresh.inventoryItems);
+    showToast('Dummy DB reset to initial demo dataset!');
+  };
+
 
   return (
     <div className="min-h-screen bg-[#FAFAFA] text-[#18181B] font-sans antialiased selection:bg-[#FFF1F2] selection:text-[#E63946]">
@@ -311,7 +369,7 @@ export default function Home() {
               currentView={currentView}
               onSelectView={(v: string) => {
                 setCurrentView(v);
-                if (v.startsWith('inv-') || v === 'inventory') {
+                if (v.startsWith('inv-') || v === 'inventory' || v === 'restaurant') {
                   setCurrentPortal('restaurant');
                 } else {
                   setCurrentPortal('hotel');
@@ -390,8 +448,14 @@ export default function Home() {
                   menuItems={menuItems}
                   inventoryItems={inventoryItems}
                   inHouseRooms={rooms.filter((r) => r.status === 'occupied')}
+                  vouchers={restaurantVouchers}
                   onPlaceOrder={handlePlaceRestaurantOrder}
                   onUpdateOrderStatus={handleUpdateOrderStatus}
+                  onAddVoucher={handleAddRestaurantVoucher}
+                  onDeleteVoucher={handleDeleteRestaurantVoucher}
+                  onImportVouchers={handleImportRestaurantVouchers}
+                  onAutoSyncOrders={handleAutoSyncRestaurantOrders}
+                  onResetDb={handleResetRestaurantDb}
                 />
               )}
             </main>

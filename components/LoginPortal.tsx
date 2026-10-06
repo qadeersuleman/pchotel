@@ -33,9 +33,9 @@ export default function LoginPortal({
   isDarkTheme,
   onToggleTheme,
 }: LoginPortalProps) {
-  const [selectedRole, setSelectedRole] = useState<'hotel' | 'restaurant'>('hotel');
-  const [email, setEmail] = useState('rfjalbani@pcinnhotel.com');
-  const [password, setPassword] = useState('admin123');
+  const [selectedRole, setSelectedRole] = useState<'hotel' | 'restaurant'>('restaurant');
+  const [email, setEmail] = useState('chef@pcinnhotel.com');
+  const [password, setPassword] = useState('pos123');
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
   const [isLoading, setIsLoading] = useState(false);

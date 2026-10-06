@@ -17,6 +17,7 @@ import {
   Layers,
   FileSpreadsheet,
   PartyPopper,
+  UtensilsCrossed,
 } from 'lucide-react';
 
 interface LeftIconSidebarProps {
@@ -126,7 +127,26 @@ export default function LeftIconSidebar({
           <Monitor className="w-5 h-5" />
         </button>
 
-        {/* 2. Inventory (Hierarchy / Box tree) */}
+        {/* 2. Restaurant POS & Vouchers (UtensilsCrossed Icon) */}
+        <button
+          onClick={() => {
+            onSelectView('restaurant');
+            setActiveDrawer(null);
+          }}
+          title="Lazzati Restaurant POS & Vouchers"
+          className={`relative w-10 h-10 rounded-2xl flex items-center justify-center transition-all cursor-pointer ${
+            currentView === 'restaurant'
+              ? 'bg-amber-50 text-amber-600 border border-amber-300 shadow-xs'
+              : 'text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100'
+          }`}
+        >
+          {currentView === 'restaurant' && (
+            <span className="absolute -left-2 top-2.5 bottom-2.5 w-1 bg-amber-600 rounded-r-md" />
+          )}
+          <UtensilsCrossed className="w-5 h-5" />
+        </button>
+
+        {/* 3. Inventory (Hierarchy / Box tree) */}
         <button
           onClick={() => setActiveDrawer(activeDrawer === 'inventory' ? null : 'inventory')}
           title="Inventory"
